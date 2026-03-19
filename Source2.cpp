@@ -4,10 +4,12 @@
 #include <vector>
 #include <fstream>
 #include <process.h>
-
-void displayField(std::vector<std::vector<char>>&, int rows, int cols);
+#include <thread>
+#include <chrono>
+void display_field(std::vector<std::vector<char>>&, int rows, int cols, int count);
 void task_for_game();
-int count_Neighbors(int x, int y, int height, int width, std::vector<std::vector<char>>& field);
+int count_neighbors(int x, int y, int height, int width, std::vector<std::vector<char>>& field);
+bool star_detect(std::vector<std::vector<char>>&, int rows, int cols);
 ///////////////////////////////////////////////////////////////////////////////////////////////
 int main()
 {
@@ -23,14 +25,86 @@ int main()
 			filling >> row >> cell;
 			field[row][cell] = '*';
 		}
-	nextfield = field;
-	displayField(field, rows, cols);
-	int nei{};
-	for (int i = 0; i < rows; i++)
+
+	//display_field(field, rows, cols, 0);
+
+	int total_cells = rows * cols;
+	
+	int** roommate_for_cell = new int*[rows];// в этоv массиве будет содержаться информация о  колличество соседей для каждой клетки массива field 
+	for (int i = 0; i < rows; i++)           
+		roommate_for_cell[i] = new int[cols];
+	for (int i = 0; i < rows; i++) {
 		for (int j = 0; j < cols; j++) {
-			int nei = count_Neighbors(i, j, rows, cols, field);
-			std::cout << nei;
+			roommate_for_cell[i][j] = count_neighbors(i, j, rows, cols, field);// тепер ячейка массива содержит информацию о количестве живых клеток, которые ее окружают
 		}
+	}
+
+	std::cout << std::endl;
+	
+	int count = 1;
+
+	while (true) {
+		//----------------------------------------------------------------------------------------
+		if (count == 1) {
+			for (int i = 0; i < rows; i++) {
+				for (int j = 0; j < cols; j++) {
+					roommate_for_cell[i][j] = count_neighbors(i, j, rows, cols, field);
+				}
+			}
+			display_field(field, rows, cols, count);
+		}																								// в этом блоке производится перенос информации о соседях 
+		else if(count > 1) {																			// в массив для первой генерации или для последующих
+			for (int i = 0; i < rows; i++) {
+				for (int j = 0; j < cols; j++) {
+					roommate_for_cell[i][j] = count_neighbors(i, j, rows, cols, nextfield);
+				}
+			}
+		}
+		//-----------------------------------------------------------------------------------------
+		//------------------------------------------------------------------------------------------------------
+		for (int i = 0; i < rows; i++)
+			for (int j = 0; j < cols; j++)
+				if (field[i][j] == '*') {
+					nextfield[i][j] = (roommate_for_cell[i][j] < 2 || roommate_for_cell[i][j] > 3) ? '-' : '*';				//в этом блоке производится реализация правил игры,
+				}																											//связанных с зарождением клетки, ее жизнью и смертью
+				else if (field[i][j] == '*') {
+					nextfield[i][j] = (roommate_for_cell[i][j] == 2 || roommate_for_cell[i][j] == 3) ? '*' : '-';
+				}
+				else if (field[i][j] == '-') {
+					nextfield[i][j] = (roommate_for_cell[i][j] == 3) ? '*' : '-';
+				}
+		//------------------------------------------------------------------------------------------------------
+		//system("cls");
+		if (count > 1) {
+			display_field(nextfield, rows, cols, count);
+		}
+		if (field == nextfield) {
+			bool detect = star_detect(field, rows, cols);
+			for (int i = 0; i < rows; i++) {
+				for (int j = 0; j < cols; j++) {
+					if (detect) {
+						std::cout << "All cells are dead. Game over." << std::endl;
+						delete roommate_for_cell[i];
+						delete[] roommate_for_cell;
+						exit(0);
+					}
+					else {
+						std::cout << "The world has stagnated. Game over." << std::endl;
+						delete roommate_for_cell[i];
+						delete[] roommate_for_cell;
+						exit(0);
+					}
+
+				}
+			}
+		}
+			field = nextfield;
+			count++;
+
+		//field = nextfield;
+		
+		std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+	}
 	
 	return EXIT_SUCCESS;
 }
@@ -62,15 +136,23 @@ void task_for_game()
 	task.close();
 }
 
-void displayField(std::vector<std::vector<char>>& field, int rows, int cols) {
+void display_field(std::vector<std::vector<char>>& field, int rows, int cols, int count) {
+	int alive_cells{};
 	for (int i = 0; i < rows; i++) {
 		for (int j = 0; j < cols; j++)
 			std::cout << field[i][j] << " ";
 		std::cout << std::endl;
 	}
+	for (int i = 0; i < rows; i++) {
+		for (int j = 0; j < cols; j++)
+			if (field[i][j] == '*') { alive_cells++; }
+	}
+	
+		std::cout << "Generation: " << count << " Alive cells: " << alive_cells << std::endl;
+	
 }
 
-int count_Neighbors(int x, int y, int height, int width, std::vector<std::vector<char>>& field) {
+int count_neighbors(int x, int y, int height, int width, std::vector<std::vector<char>>& field) {
 	int count = 0;
 	for (int i = -1; i <= 1; i++) {
 		for (int j = -1; j <= 1; j++) {
@@ -84,4 +166,17 @@ int count_Neighbors(int x, int y, int height, int width, std::vector<std::vector
 		}
 	}
 	return count;
+}
+bool star_detect(std::vector<std::vector<char>>& arr, int rows, int cols) {
+	bool detect = 1;
+	for (int i = 0; i < rows; i++) {
+		for (int j = 0; j < cols; j++) {
+			if (arr[i][j] = '*') {
+				detect = 0;
+				return detect;
+			}
+		}
+	}
+	
+	return detect;
 }
